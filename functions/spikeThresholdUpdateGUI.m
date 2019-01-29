@@ -81,11 +81,6 @@ ax_unfltrd_suspect = findobj(disttreshfig,'Tag' ,'unfltrd_suspect');
 ax_fltrd_notsuspect = findobj(disttreshfig,'Tag','fltrd_notsuspect');
 ax_unfltrd_notsuspect = findobj(disttreshfig,'Tag','unfltrd_notsuspect');
 
-% meanspike = findobj(ax_detect_patch,'tag','goodspike','linewidth',2);
-% if isempty(goodspikeamp)
-%     goodspikeamp = meanspike.UserData;
-% end
-
 distthresh_l = findobj(ax_hist,'tag','dist_threshold');
 distthresh_l.XData = vars.Distance_threshold*[1 1];
 ampthresh_l = findobj(ax_hist,'tag','amp_threshold');
@@ -98,30 +93,7 @@ suspect = selectcriteria(:,1)<vars.Distance_threshold & selectcriteria(:,2) > va
 targetSpikeDist = selectcriteria(:,1);
 spikeAmplitude = selectcriteria(:,2);
 
-weird = spikeAmplitude > vars.Amplitude_threshold & targetSpikeDist<vars.Distance_threshold & ... 
-    (targetSpikeDist>quantile(targetSpikeDist(...
-    targetSpikeDist<vars.Distance_threshold & spikeAmplitude > vars.Amplitude_threshold),0.85) | ...
-    spikeAmplitude < quantile(spikeAmplitude(...
-    targetSpikeDist<vars.Distance_threshold & spikeAmplitude > vars.Amplitude_threshold),0.2));
-if numel(targetSpikeDist)<40
-    good = targetSpikeDist<vars.Distance_threshold &...
-        spikeAmplitude >vars.Amplitude_threshold & ~weird; 
-else
-    good = targetSpikeDist<quantile(targetSpikeDist(targetSpikeDist<vars.Distance_threshold),0.2) &...
-        spikeAmplitude >vars.Amplitude_threshold; %*goodspikeamp;
-end
-weirdbad = (targetSpikeDist>vars.Distance_threshold & ...
-    targetSpikeDist<2*quantile(targetSpikeDist(targetSpikeDist<vars.Distance_threshold),0.85)) | ...
-    (spikeAmplitude <= vars.Amplitude_threshold & ... %*goodspikeamp;
-    spikeAmplitude > 0);
-if numel(targetSpikeDist)<40
-    bad = (targetSpikeDist>vars.Distance_threshold |...
-        spikeAmplitude < vars.Amplitude_threshold) & ~weirdbad;
-else
-    bad = targetSpikeDist>vars.Distance_threshold &...
-        spikeAmplitude < vars.Amplitude_threshold;
-end
-
+[good,weird,weirdbad,bad] = thegoodthebadandtheweird(targetSpikeDist,spikeAmplitude,vars.Distance_threshold,vars.Amplitude_threshold);
 
 %% Redraw the criteria based on new thresholds
 
@@ -258,41 +230,25 @@ ax_detect_patch = findobj(disttreshfig,'Tag','detect_patch');
 suspect_ls = findobj(ax_detect,'Tag','squiggles'); suspect_ls = flipud(suspect_ls);
 suspect_ticks = findobj(ax_main,'Tag','ticks'); suspect_ticks = flipud(suspect_ticks);
 suspectUF_ls = findobj(ax_detect_patch,'Tag','spikes'); suspectUF_ls = flipud(suspectUF_ls);
-all_filtered_data = findobj(ax_filtered,'Tag','filtered_data'); all_filtered_data = all_filtered_data.YData;
+%all_filtered_data = findobj(ax_filtered,'Tag','filtered_data'); all_filtered_data = all_filtered_data.YData;
 
-hist = findobj(ax_hist,'Tag','distance_hist');
-selectcriteria = hist.UserData;
-spike_locs = selectcriteria(:,3);
-targetSpikeDist = selectcriteria(:,1);
-
-meansquiggle = findobj(ax_detect,'tag','potential_template');
+goodsquiggle = findobj(ax_detect,'tag','potential_template');
 initsquiggle = findobj(ax_detect,'tag','initial_template');
-spikeTemplate = meansquiggle.YData;
+spikeTemplate = goodsquiggle.YData;
 initsquiggle.YData = spikeTemplate;
 
-norm_spikeTemplate = (spikeTemplate-min(spikeTemplate))/(max(spikeTemplate)-min(spikeTemplate));
+selectcriteria = ax_hist.UserData; %threshidx = threshidx(:)';
 
-%window = (max(spike_locs(i)-floor(spike_params.spikeTemplateWidth/2),0)+1: min(spike_locs(i)+floor(spike_params.spikeTemplateWidth/2),length(all_filtered_data)))
-% Should have gotten rid of spikes near the beginning or end of the data
-window = -floor(vars.spikeTemplateWidth/2): floor(vars.spikeTemplateWidth/2);
+[detectedUFSpikeCandidates,...
+    detectedSpikeCandidates,...
+    norm_detectedSpikeCandidates,...
+    targetSpikeDist,...
+    spikeAmplitude,...
+    window,...
+    spikewindow] = ...
+    getSquiggleDistanceFromTemplate(selectcriteria(:,3),spikeTemplate,vars.filtered_data,vars.unfiltered_data,vars.spikeTemplateWidth,vars.fs);
 
-for i=1:length(spike_locs)
-    
-    if min(spike_locs(i)+vars.spikeTemplateWidth/2,length(all_filtered_data)) - max(spike_locs(i)-vars.spikeTemplateWidth/2,0)< vars.spikeTemplateWidth
-        continue
-    else
-        curSpikeTarget = all_filtered_data(spike_locs(i)+window);
-        norm_curSpikeTarget = (curSpikeTarget-min(curSpikeTarget))/(max(curSpikeTarget)-min(curSpikeTarget));
-        [targetSpikeDist(i), ~,~] = dtw_WarpingDistance(norm_curSpikeTarget, norm_spikeTemplate);
-    end
-end
-
-hist = findobj(ax_hist,'Tag','distance_hist');
-hist.XData = targetSpikeDist;
-
-selectcriteria(:,1) = targetSpikeDist;
-hist.UserData = selectcriteria;
-
+ax_hist.UserData = [targetSpikeDist(:) spikeAmplitude(:) selectcriteria(:,3)];
 vars.spikeTemplate = spikeTemplate;
 
 updateSpikeThreshold(ax_hist,eventdata)

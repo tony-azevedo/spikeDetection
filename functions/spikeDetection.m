@@ -1,16 +1,16 @@
-function [trial,vars_skeleton] = spikeDetection(trial,inputToAnalyze,vars_initial)
-%% For now this function only gets the spikes from a single electrode.
-% I'll need to come up with a different version (spikeDetectionPairs) when
-% I start looking at pairs of neurons. Alternatively the wrapper function
-% could just cal this function on the two sets of spikes.
+function [trial,vars_skeleton] = spikeDetection(trial,inputToAnalyze,vars_initial,varargin)
+% [trial,vars_skeleton] = spikeDetection(trial,inputToAnalyze,vars_initial,varargin)
+% This function detects spikes based on the match to a template and the
+% approx. size of the spike, from initial upswing to the peak.
 
-% if trial.params.gain_1==100 && strcmp(inputToAnalyze,'voltage_1')
-%     unfiltered_data = trial.(inputToAnalyze);
-% else
-unfiltered_data = filterMembraneVoltage(trial.(inputToAnalyze),trial.params.sampratein);
-% end% d1 = getacqpref('FlyAnalysis',['VoltageFilter_fs' num2str(trial.params.sampratein)]);
-% unfiltered_data = filter(d1,unfiltered_data);
 
+unfiltered_data = trial.(inputToAnalyze);
+if nargin>3
+    d1 = varargin{1};
+    unfiltered_data = lowPassFilterMembraneVoltage(unfiltered_data,d1.SampleRate,d1);
+elseif isfield(trial,'name')
+    unfiltered_data = filterMembraneVoltage(unfiltered_data,trial.params.sampratein);
+end
 
 % clean up vars_initial
 vars_initial = cleanUpSpikeVarsStruct(vars_initial);
@@ -21,20 +21,17 @@ disp(vars_initial);
 global vars;
 vars = vars_initial;
 
-% max_len = 400000;
-% if length(unfiltered_data) < max_len
-    vars.len = length(unfiltered_data)-round(.01*trial.params.sampratein);
-% else
-%     vars.len = max_len -round(.01*trial.params.sampratein);
-% end
+vars.len = length(unfiltered_data)-round(.01*vars_initial.fs);
 
-start_point = round(.01*trial.params.sampratein);
+start_point = round(.01*vars_initial.fs);
 stop_point = min([start_point+vars.len length(unfiltered_data)]);
 unfiltered_data = unfiltered_data(start_point+1:stop_point);
 
 vars.unfiltered_data = unfiltered_data;
 vars.filtered_data = filterDataWithSpikes(vars);
-[~,vars.lastfilename] = fileparts(trial.name);
+if isfield(trial,'name')
+    [~,vars.lastfilename] = fileparts(trial.name);
+end
 
 %% run detection first, ask if you need to look again.
 if isfield(vars,'spikeTemplate') && ~isempty(vars.spikeTemplate) 
@@ -43,7 +40,7 @@ if isfield(vars,'spikeTemplate') && ~isempty(vars.spikeTemplate)
 end
 
 %% if you're done, save the spikes... done
-newbutton = questdlg('Save spikes?','Spike detection','Yes');
+newbutton = questdlg('Done with spike detection?','Spike detection','Yes');
 
 % rejigger the filter and then select some spikes
 while strcmp(newbutton,'No')
@@ -77,33 +74,39 @@ while strcmp(newbutton,'No')
     vars.spikeTemplate = spikeTemplate;
     
     [spikes_detected,uncorrectedSpikes] = detectSpikes;
-    newbutton = questdlg('Save spikes?','Spike detection','Yes');
+    newbutton = questdlg('Done with spike detection?','Spike detection','Yes');
 end
     
 % Save spikes
 if strcmp(newbutton,'Yes')
     vars = cleanUpSpikeVarsStruct(vars);
-    vars.lastfilename = trial.name;
     vars_skeleton = vars;
     if isempty(spikes_detected)
         trial.spikes = spikes_detected;
         trial.spikes_uncorrected = uncorrectedSpikes;
         trial.spikeDetectionParams = vars;
         trial.spikeSpotChecked = 0;
-
-        save(trial.name, '-struct', 'trial');
-        fprintf('Saved Spikes (0) and filter parameters saved: %s\n',numel(trial.spikes),trial.name);
+        if isfield(trial,'name')
+            vars.lastfilename = trial.name;
+            save(trial.name, '-struct', 'trial');
+            fprintf('Saved Spikes (0) and filter parameters saved: %s\n',trial.name);
+        else
+            fprintf('Saved Spikes (%d) and filter parameters saved\n',numel(trial.spikes));
+        end
         return
     end
     trial.spikes = spikes_detected + start_point;
     trial.spikes_uncorrected = uncorrectedSpikes + start_point;
     trial.spikeDetectionParams = vars;
     trial.spikeSpotChecked = 0;
-    save(trial.name, '-struct', 'trial');
-    fstag = ['fs' num2str(vars.fs)];
-    setacqpref('FlyAnalysis',['Spike_params_' fstag],vars);
-
-    fprintf('Saved Spikes (%d) and filter parameters saved: %s\n',numel(trial.spikes),trial.name);
+    if isfield(trial,'name')
+        save(trial.name, '-struct', 'trial');
+        fstag = ['fs' num2str(vars.fs)];
+        setacqpref('FlyAnalysis',['Spike_params_' fstag],vars);
+        fprintf('Saved Spikes (%d) and filter parameters saved: %s\n',numel(trial.spikes),trial.name);
+    else
+        fprintf('Saved Spikes (%d) and filter parameters saved\n',numel(trial.spikes));
+    end
 
     fprintf('** Spike Detection was run with params:\n')
     disp(vars);
@@ -145,7 +148,7 @@ end
         ax_main = panl(1).select(); ax_main.Tag = 'main';
         plot(ax_main,vars.unfiltered_data-mean(vars.unfiltered_data),'color',[.85 .33 .1],'tag','vars.unfiltered_data'), hold(ax_main,'on');
         axis(ax_main,'off');
-        title(ax_main,regexprep(sprintf('%s: \tWhen done, hit a button',vars.lastfilename),'_','\\_'));
+        title(ax_main,regexprep(sprintf('\tWhen done moving threshold, hit ''space'''),'_','\\_'));
 
         % Plot filtered data
         ax_filtered = panl(2).select(); ax_filtered.Tag = 'filtered';
@@ -182,9 +185,10 @@ end
         % but if there are no spikes, stop here.
         if ~isempty(targetSpikeDist)
             
+            suspect = targetSpikeDist<vars.Distance_threshold & spikeAmplitude > vars.Amplitude_threshold;
+            [good,weird,weirdbad,bad] = thegoodthebadandtheweird(targetSpikeDist,spikeAmplitude,vars.Distance_threshold,vars.Amplitude_threshold);
+            
             panl(3).pack('h',{1/3 1/3 1/3})
-            goodspikeAmp = mean(spikeAmplitude(targetSpikeDist<quantile(targetSpikeDist,.25)));
-            suspect = targetSpikeDist<vars.Distance_threshold & spikeAmplitude > vars.Amplitude_threshold; % *goodspikeAmp;
 
             % Plot targetSpikeDist vs spikeAmplitude
             ax_hist = panl(3,1).select(); ax_hist.Tag = 'hist';
@@ -199,41 +203,20 @@ end
             ax_hist.UserData = [targetSpikeDist(:) spikeAmplitude(:) spike_locs(:)];
             hold(ax_hist,'on');
             
-            
+            % Threshold lines
             plot(ax_hist,vars.Distance_threshold*[1 1],[min(spikeAmplitude) max(spikeAmplitude)],'color',[1 0 0],'tag','dist_threshold');
-            plot(ax_hist,[min(targetSpikeDist) max(targetSpikeDist)],vars.Amplitude_threshold*[1 1],'color',[1 0 0],'tag','amp_threshold');
+            plot(ax_hist,[min(targetSpikeDist) max([max(targetSpikeDist) vars.Distance_threshold])],vars.Amplitude_threshold*[1 1],'color',[1 0 0],'tag','amp_threshold');
 
             % Plot good and bad detected waveforms
             ax_detect = panl(3,2).select(); ax_detect.Tag = 'detect';
             title(ax_detect,'Click anywhere to use blue line as template');
             hold(ax_detect,'on');
             
-            weird = spikeAmplitude > vars.Amplitude_threshold & targetSpikeDist<vars.Distance_threshold & ...
-                (targetSpikeDist>quantile(targetSpikeDist(...
-                targetSpikeDist<vars.Distance_threshold & spikeAmplitude > vars.Amplitude_threshold),0.85) | ...
-                spikeAmplitude < quantile(spikeAmplitude(...
-                targetSpikeDist<vars.Distance_threshold & spikeAmplitude > vars.Amplitude_threshold),0.2));
-            if numel(targetSpikeDist)<40
-                good = targetSpikeDist<vars.Distance_threshold &...
-                    spikeAmplitude > vars.Amplitude_threshold & ~weird;
-            else
-                good = targetSpikeDist<quantile(targetSpikeDist(targetSpikeDist<vars.Distance_threshold),0.2) &...
-                    spikeAmplitude > vars.Amplitude_threshold; %*goodspikeAmp;
-            end
-            weirdbad = (targetSpikeDist>vars.Distance_threshold & ...
-                targetSpikeDist<2*quantile(targetSpikeDist(targetSpikeDist<vars.Distance_threshold),0.85)) | ...
-                (spikeAmplitude <= vars.Amplitude_threshold & ...
-                spikeAmplitude > 0);
-            if numel(targetSpikeDist)<40
-                bad = (targetSpikeDist>vars.Distance_threshold |...
-                spikeAmplitude < vars.Amplitude_threshold) & ~weird;
-            else
-                bad = targetSpikeDist>vars.Distance_threshold &...
-                spikeAmplitude < vars.Amplitude_threshold;
-            end
             ax_detect.UserData.window = window;
             ax_detect.UserData.spikewindow = spikewindow;
             
+            %%
+
             if any(good)
                 goodSuspectSquiggles = plot(ax_detect,window,detectedSpikeCandidates(:,good),'tag','squiggles');
                 plot(ax_detect,window,mean(detectedSpikeCandidates(:,good),2),'color',[0 .3 1], 'linewidth', 2,'tag','potential_template')
@@ -258,8 +241,8 @@ end
                 plot(ax_detect_patch,spikewindow,spikeWaveforms(:,good),'color',[0 .8 .8],'tag','spikes');
                 plot(ax_detect_patch,spikewindow,spikeWaveforms(:,weird),'color',[0 0 0],'tag','weirdspikes');
                 smthwnd = (vars.fs/2000+1:length(spikewindow)-vars.fs/2000);
-                suspectUF_avel = plot(ax_detect_patch,spikewindow,spikeWaveform,'color',[0 .3 1],'linewidth',2,'userdata',goodspikeAmp,'tag','goodspike');
-                suspectUF_ddT2l = plot(ax_detect_patch,spikewindow(smthwnd(2:end-1)),spikeWaveform_(smthwnd(2:end-1))/max(spikeWaveform_(smthwnd(2:end-1)))*max(spikeWaveform),'color',[0 .8 .4],'linewidth',2,'tag','spike_ddt');
+                plot(ax_detect_patch,spikewindow,spikeWaveform,'color',[0 .3 1],'linewidth',2,'tag','goodspike');
+                plot(ax_detect_patch,spikewindow(smthwnd(2:end-1)),spikeWaveform_(smthwnd(2:end-1))/max(spikeWaveform_(smthwnd(2:end-1)))*max(spikeWaveform),'color',[0 .8 .4],'linewidth',2,'tag','spike_ddt');
                 
                 spikeTime = spikewindow(spikeWaveform_==max(spikeWaveform_));
                 spikePT = spikewindow(spikeWaveform==max(spikeWaveform));
