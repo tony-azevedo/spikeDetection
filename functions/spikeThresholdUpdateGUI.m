@@ -141,49 +141,42 @@ spikewindow = ax_detect.UserData.spikewindow;
 cla(ax_fltrd_suspect)
 cla(ax_unfltrd_suspect)
 
-if any(good) && any(weird)
+if any(good) 
     goodsquiggles = plot(ax_detect,window,squiggles(:,good),'tag','squiggles','Color',[.8 .8 .8]);
-    weirdSuspectSquiggles = plot(ax_detect,window,squiggles(:,weird),'tag','weirdsquiggles','Color',[0 0 0]);
-    uistack(weirdSuspectSquiggles,'bottom')
-    uistack(goodsquiggles,'bottom')
-    
     goodspikes = plot(ax_detect_patch,spikewindow,spikes(:,good),'color',[.8 .8 .8],'tag','spikes');
-    weirdspikes = plot(ax_detect_patch,spikewindow,spikes(:,weird),'color',[0 0 0],'tag','weirdspikes');
-    uistack(weirdspikes,'bottom')
-    uistack(goodspikes,'bottom')
-        
     plot(ax_fltrd_suspect,window,squiggles(:,good),'tag','squiggles_suspect','color',[0.8 0.8 0.8]);
-    plot(ax_fltrd_suspect,window,squiggles(:,weird),'tag','squiggles_suspect','color',[0 0 0]);
-    % ax_fltrd_suspect.YLim = ax_detect.YLim;
-    % hold(ax_fltrd_suspect,'on');
-    text(ax_fltrd_suspect,...
-        ax_fltrd_suspect.XLim(1)+0.05*diff(ax_fltrd_suspect.XLim),...
-        ax_fltrd_suspect.YLim(2)-0.05*diff(ax_fltrd_suspect.YLim),...
-        sprintf('%d Spikes',sum(suspect)),'color',[.1 .4 .8]);
-    %hold(ax_fltrd_suspect,'off');
-
-
     plot(ax_unfltrd_suspect,spikewindow,spikes(:,good),'tag','spikes_suspect','color',[0.8 0.8 0.8]);
+    
+end
+
+if any(weird)
+    weirdSuspectSquiggles = plot(ax_detect,window,squiggles(:,weird),'tag','weirdsquiggles','Color',[0 0 0]);
+    weirdspikes = plot(ax_detect_patch,spikewindow,spikes(:,weird),'color',[0 0 0],'tag','weirdspikes');
+    plot(ax_fltrd_suspect,window,squiggles(:,weird),'tag','squiggles_suspect','color',[0 0 0]);
     plot(ax_unfltrd_suspect,spikewindow,spikes(:,weird),'tag','spikes_suspect','color',[0 0 0]);
     ax_unfltrd_suspect.YLim = ax_detect_patch.YLim;
-
-    meanspike = findobj(ax_detect_patch,'tag','goodspike');
-    if isempty(meanspike)
-        meanspike = plot(ax_detect_patch,spikewindow,mean(spikes(:,suspect),2),'color',[0 .3 1],'linewidth',2,'tag','goodspike');
-        spikeWaveform = smooth(mean(spikes(:,suspect),2),vars.fs/2000);
-        spikeWaveform_ = smoothAndDifferentiate(spikeWaveform,vars.fs/2000);
-        smthwnd = (vars.fs/2000+1:length(meanspike.YData)-vars.fs/2000);
-        spikediffdiff = plot(ax_detect_patch,spikewindow(smthwnd(2:end-1)),spikeWaveform_(smthwnd(2:end-1))/max(spikeWaveform_(smthwnd(2:end-1)))*max(spikeWaveform),'color',[0 .8 .4],'linewidth',2,'tag','spike_ddt');           
-    else
-        meanspike.YData = smooth(mean(spikes(:,suspect),2));        
-    end
-
-    spikeWaveform_ = smooth(diff(spikewindow),vars.fs/2000);
-    spikeWaveform_ = smooth(diff(spikeWaveform_),vars.fs/2000);
-    spikediffdiff = findobj(ax_detect_patch,'color',[0 .8 .4]);
-    smthwnd = (vars.fs/2000+1:length(meanspike.YData)-vars.fs/2000);
-    spikediffdiff.YData = spikeWaveform_(smthwnd(2:end-1))/max(spikeWaveform_(smthwnd(2:end-1)))*max(meanspike.YData);
 end
+
+text(ax_fltrd_suspect,...
+    ax_fltrd_suspect.XLim(1)+0.05*diff(ax_fltrd_suspect.XLim),...
+    ax_fltrd_suspect.YLim(2)-0.05*diff(ax_fltrd_suspect.YLim),...
+    sprintf('%d Spikes',sum(suspect)),'color',[.1 .4 .8]);
+
+meanspike = findobj(ax_detect_patch,'tag','goodspike');
+if isempty(meanspike)
+    meanspike = plot(ax_detect_patch,spikewindow,mean(spikes(:,suspect),2),'color',[0 .3 1],'linewidth',2,'tag','goodspike');
+    spikeWaveform = smooth(mean(spikes(:,suspect),2),vars.fs/2000);
+    spikeWaveform_ = smoothAndDifferentiate(spikeWaveform,vars.fs/2000);
+    smthwnd = (vars.fs/2000+1:length(meanspike.YData)-vars.fs/2000);
+    plot(ax_detect_patch,spikewindow(smthwnd(2:end-1)),spikeWaveform_(smthwnd(2:end-1))/max(spikeWaveform_(smthwnd(2:end-1)))*max(spikeWaveform),'color',[0 .8 .4],'linewidth',2,'tag','spike_ddt');
+else
+    meanspike.YData = smooth(mean(spikes(:,suspect),2));
+end
+spikeWaveform = smooth(mean(spikes(:,suspect),2),vars.fs/2000);
+spikeWaveform_ = smoothAndDifferentiate(spikeWaveform,vars.fs/2000);
+spikediffdiff = findobj(ax_detect_patch,'color',[0 .8 .4],'tag','spike_ddt');
+smthwnd = (vars.fs/2000+1:length(meanspike.YData)-vars.fs/2000);
+spikediffdiff.YData = spikeWaveform_(smthwnd(2:end-1))/max(spikeWaveform_(smthwnd(2:end-1)))*max(meanspike.YData);
 
 cla(ax_fltrd_notsuspect)
 if any(bad)

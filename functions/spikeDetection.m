@@ -102,7 +102,7 @@ if strcmp(newbutton,'Yes')
     if isfield(trial,'name')
         save(trial.name, '-struct', 'trial');
         fstag = ['fs' num2str(vars.fs)];
-        setacqpref('FlyAnalysis',['Spike_params_' fstag],vars);
+        setacqpref('FlyAnalysis',['Spike_params_' inputToAnalyze '_' fstag],vars);
         fprintf('Saved Spikes (%d) and filter parameters saved: %s\n',numel(trial.spikes),trial.name);
     else
         fprintf('Saved Spikes (%d) and filter parameters saved\n',numel(trial.spikes));
@@ -307,19 +307,13 @@ end
             % the threshold
             spikes = vars.locs;
             
-            norm_spikeTemplate = (vars.spikeTemplate-min(vars.spikeTemplate))/(max(vars.spikeTemplate)-min(vars.spikeTemplate));
-            % Calculate the distance one last time
-            for i=1:length(spike_locs)
-                
-                if min(spike_locs(i)+vars.spikeTemplateWidth/2,length(vars.filtered_data)) - max(spike_locs(i)-vars.spikeTemplateWidth/2,0)< vars.spikeTemplateWidth
-                    continue
-                else
-                    curSpikeTarget = vars.filtered_data(spike_locs(i)+window);
-                    norm_curSpikeTarget = (curSpikeTarget-min(curSpikeTarget))/(max(curSpikeTarget)-min(curSpikeTarget));
-                    [targetSpikeDist(i), ~,~] = dtw_WarpingDistance(norm_curSpikeTarget, norm_spikeTemplate);
-                end
-            end
-            
+            [~,...
+                ~,...
+                ~,...
+                targetSpikeDist,...
+                spikeAmplitude] = ...
+                getSquiggleDistanceFromTemplate(spike_locs,spikeTemplate,vars.filtered_data,vars.unfiltered_data,vars.spikeTemplateWidth,vars.fs);
+
             suspect = targetSpikeDist<vars.Distance_threshold & spikeAmplitude > vars.Amplitude_threshold; % goodspikeamp
             spikes = spikes(suspect);
                                     

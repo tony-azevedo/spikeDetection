@@ -1,33 +1,23 @@
 function [good,weird,weirdbad,bad] = thegoodthebadandtheweird(x,y,xt,yt)
 
-% The weird
+% The weird/borderline
 weird = y > yt & x<xt & ...
-    (x>quantile(x(...
-    x<xt & y > yt),0.85) | ...
-    y < quantile(y(...
-    x<xt & y > yt),0.2));
+    (x>quantile(x(x<xt & y > yt),0.85) | ...
+    y < quantile(y(x<xt & y > yt),0.2));
 
 % The good
-if numel(x)<40
-    good = x<vars.Distance_threshold &...
-        y > yt & ~weird;
-else
-    good = x<quantile(x(x<xt),0.2) &...
-        y > yt; %*goodspikeAmp;
+good = x<xt & y>yt & ~weird;
+if sum(good) >= 40
+    good = x<quantile(x(x<xt),0.2) & y > quantile(y(y > xt),0.2);
 end
 
 % The borderline
-weirdbad = (x>xt & ...
-    x<2*quantile(x(x<xt),0.85)) | ...
-    (y <= yt & ...
-    y > 0);
+weirdbad = (x>xt & x<2*quantile(x(x<xt),0.85)) | ...
+    (y <= yt & y > 0);
 
 % The bad
-if numel(x)<40
-    bad = (x>xt |...
-        y < yt) & ~weird;
-else
-    bad = x>xt &...
-        y < yt;
+bad = (x>xt | y < yt) & ~weirdbad;
+if numel(bad) >= 40
+    bad = x>xt & y < yt;
 end
             
