@@ -206,11 +206,8 @@ elseif any(good)
 elseif ~isempty(meansquiggle)
     meansquiggle.YData = mean(squiggles,2);
 end
-template = findobj(ax_detect,'tag','initial_template');
 
 uistack(meansquiggle,'top')
-uistack(template,'top')
-
 end
 
 function runDetectionWithNewTemplate(hObject,eventdata)
@@ -233,7 +230,6 @@ goodsquiggle = findobj(ax_detect,'tag','potential_template');
 initsquiggle = findobj(ax_detect,'tag','initial_template');
 spikeTemplate = goodsquiggle.YData;
 initsquiggle.YData = spikeTemplate;
-uistack(initsquiggle,'top')
 
 selectcriteria = ax_hist.UserData; %threshidx = threshidx(:)';
 

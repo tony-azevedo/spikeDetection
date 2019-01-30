@@ -44,7 +44,7 @@ for i = 1:length(spikes)
         spikes(i) = spikes(i)+spikewindow(inflPntPeak);
     else
         % Peak of 2nd derivative is still undefined
-        spikes(i) = spikes(i)+spikewindow(inflPntPeak_ave);
+        spikes(i) = spikes(i)+spikewindow(vars.likelyiflpntpeak);
         
     end
         

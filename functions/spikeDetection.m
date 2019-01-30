@@ -219,7 +219,7 @@ end
 
             if any(good)
                 goodSuspectSquiggles = plot(ax_detect,window,detectedSpikeCandidates(:,good),'tag','squiggles');
-                plot(ax_detect,window,mean(detectedSpikeCandidates(:,good),2),'color',[0 .3 1], 'linewidth', 2,'tag','potential_template')
+                meansquiggle = plot(ax_detect,window,mean(detectedSpikeCandidates(:,good),2),'color',[.3 .6 1], 'linewidth', 1,'tag','potential_template');
                 set(goodSuspectSquiggles,'Color',[.8 .8 .8]);
             end
                 
@@ -227,7 +227,7 @@ end
                 weirdSuspectSquiggles = plot(ax_detect,window,detectedSpikeCandidates(:,weird),'tag','weirdsquiggles');
                 set(weirdSuspectSquiggles,'Color',[0 0 0]);
             end
-            plot(ax_detect,window,spikeTemplate,'color',[.85 .85 .85], 'linewidth', 2,'tag','initial_template')
+            template = plot(ax_detect,window,spikeTemplate,'color',[.7 .2 .3], 'linewidth', 1,'tag','initial_template');
             
             
             % Plot all detected spikes
@@ -293,6 +293,9 @@ end
                 plot(ax_unfltrd_notsuspect,spikewindow,spikeWaveforms(:,weirdbad),'tag','spikes_notsuspect_','color',[.7 0 0]);
             end
             
+            uistack(meansquiggle,'top')
+            uistack(template,'top')
+
             %% Now update the threshold for the squiggles
             vars_0 = vars;
             %disttreshfig.CloseRequestFcn = {@(hObject,eventdata,handles) disp('Hit a button')};

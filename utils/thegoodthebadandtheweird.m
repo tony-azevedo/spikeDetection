@@ -8,7 +8,7 @@ weird = y > yt & x<xt & ...
 % The good
 good = x<xt & y>yt & ~weird;
 if sum(good) >= 40
-    good = x<quantile(x(x<xt),0.2) & y > quantile(y(y > xt),0.2);
+    good = x<quantile(x(x<xt),0.2) & y > quantile(y(y > yt),0.35);
 end
 
 % The borderline
