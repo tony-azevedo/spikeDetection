@@ -23,16 +23,21 @@ for i = 1:length(spikes)
     end
     
     start_idx = vars.fs/10000*20; % 50 for fs - 50k, 10 for fs - 10k
-    end_idx = vars.fs/10000*10;
+    end_idx = vars.fs/10000*6;
 
     detectedSpikeWaveform = spikeWaveforms(:,i);
-    detectedSpikeWaveform = smooth(detectedSpikeWaveform-detectedSpikeWaveform(1),vars.fs/2000);
-    detectedSpikeWaveform_ = smoothAndDifferentiate(detectedSpikeWaveform,vars.fs/2000);
+
+    if ~(isfield(vars,'field') && contains(vars.field,'EMG'))
+        detectedSpikeWaveform = smooth(detectedSpikeWaveform-detectedSpikeWaveform(1),vars.fs/2000);
+        detectedSpikeWaveform_ = smoothAndDifferentiate(detectedSpikeWaveform,vars.fs/2000);
+    else
+        detectedSpikeWaveform_ = Differentiate(detectedSpikeWaveform,vars.fs/4000);
+    end
     
     % normalize
     detectedSpikeWaveform_ = (detectedSpikeWaveform_-min(detectedSpikeWaveform_(start_idx+1:end-end_idx)))/diff([min(detectedSpikeWaveform_(start_idx+1:end-end_idx)) max(detectedSpikeWaveform_(start_idx+1:end-end_idx))]);
             
-    [pks,inflPntPeak] = findpeaks(detectedSpikeWaveform_(start_idx+1:end-end_idx),'MinPeakProminence',0.02);
+    [pks,inflPntPeak] = findpeaks(detectedSpikeWaveform_(start_idx+1:end-end_idx),'MinPeakProminence',0.02*251/vars.spikeTemplateWidth);
     inflPntPeak = inflPntPeak+start_idx;
     
     if numel(inflPntPeak)>1

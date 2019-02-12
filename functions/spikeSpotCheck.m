@@ -186,7 +186,7 @@ cla(ax_hist)
 % even if they actually have been moved. Create a map
 spikes_map = nan(size(vars.locs(:)));
 for s = trial.spikes(:)'
-    % find the closest spike in the according to peak
+    % find the closest spike the according to peak
     idxdiff = abs(vars.locs-s); 
     spikes_map(idxdiff==min(idxdiff)) = s;
 end
@@ -205,7 +205,8 @@ ampthresh = plot(ax_hist,[0 max(targetSpikeDist)],vars.Amplitude_threshold*[1 1]
 ax_hist.YLim = distthresh.YData;
 ax_hist.XLim = ampthresh.XData;
 
-scat_in.UserData = spikes_map;
+spikes_map = cat(2,spikes_map,targetSpikeDist(:),spikeAmplitude(:));
+ax_hist.UserData = spikes_map;
 
 % plot the spikes as they've been selected thus far
 if isempty(findobj(ax_main,'tag','raster_ticks'))
@@ -263,8 +264,8 @@ end
         % norm_spikeTemplate = (spikeTemplate-min(spikeTemplate))/(max(spikeTemplate)-min(spikeTemplate));
         
         [detectedUFSpikeCandidates,...
-            detectedSpikeCandidates,...
-            norm_detectedSpikeCandidates,...
+            ~,...
+            ~,...
             targetSpikeDist,...
             spikeAmplitude,...
             window,...
@@ -290,18 +291,17 @@ global cmd
 ax_hist = findobj('type','axes','tag','hist');
 hObject = ax_hist;
 trial = hObject.Parent.UserData;
+spikes_map = ax_hist.UserData;
 
 hObject.Parent.CloseRequestFcn = {@(hObject,eventdata,handles) disp('Hit enter')};
 
 hist_dots_in = findobj(hObject,'tag','distance_hist_in');
 hist_dots_out = findobj(hObject,'tag','distance_hist_out');
-if ~isempty(hist_dots_in)
-    spikes_map = hist_dots_in.UserData;
-    distthresh_line = findobj(hObject,'tag','dist_threshold');
-    ampthresh_line = findobj(hObject,'tag','amp_threshold');
-    dist_threshold = max(distthresh_line.XData);
-    amp_threshold = max(ampthresh_line.YData);
-end
+
+distthresh_line = findobj(hObject,'tag','dist_threshold');
+% ampthresh_line = findobj(hObject,'tag','amp_threshold');
+% dist_threshold = max(distthresh_line.XData);
+% amp_threshold = max(ampthresh_line.YData);
 
 ax_main = findobj(hObject.Parent,'Tag','main');
 ax_filtered = findobj(hObject.Parent,'type','axes','tag','filtered');
@@ -327,7 +327,7 @@ if isempty(hist_dots_in)
 
 end
 
-if isempty(evntdata) && ~isempty(hist_dots_in)
+if isempty(evntdata) && ~isempty(hist_dots_in) % Assumes you found a spike and that you're setting up the plot, finding a place to start
     trace = findobj(ax_main,'Tag', 'unfiltered_data');
     trace_filtered = findobj(ax_filtered,'Tag', 'filtered_data');
     t = trace.XData;
@@ -339,25 +339,27 @@ if isempty(evntdata) && ~isempty(hist_dots_in)
     
     cntxtwnd = min(wind)*4:max(wind)*4;
     
-    % start with the current spike, move either forward or back, allow all
+    % start with the current spike, assume it's the first above threshold, move either forward or back, allow all
     % the spikes to be cliked upon.
-    % spike_idx = find(hist_dots.XData<threshold,1,'last');
-    spike_idx = 1;
+    first_in_spike = [hist_dots_in.XData(1) hist_dots_in.YData(1)];
+    spike_idx = find(spikes_map(:,4)==first_in_spike(1) & spikes_map(:,5)==first_in_spike(2));
     spike = spikes_map(spike_idx,1);
     ucspike = spikes_map(spike_idx,3);
     
-    if isempty(spike_idx) % there are no events larger than threshold
+    if isempty(spike_idx) % there are no events larger than threshold, should be impossible in this loop, since hist_dots_in would be empty
         spike_idx = 1;
         spike = spikes_map(spike_idx,1);
+        warning('weird')
     end
     if isnan(spike)
         spike = spikes_map(spike_idx,2);
+        warning('weird')
     end
     
     % fill in the current dot on the hist plot
     current_dot = plot(hObject,...
-        hist_dots_in.XData(max([spike_idx 1])),...
-        hist_dots_in.YData(max([spike_idx 1])),...
+        hist_dots_in.XData(1),...
+        hist_dots_in.YData(1),...
         'marker','o','markeredgecolor','none','markerfacecolor',[1 0 0],'tag','current_dot');
         
     % Find the current tick
@@ -416,7 +418,8 @@ if isempty(evntdata) && ~isempty(hist_dots_in)
     % spikes can't be within template width of the end of the trial,
     % but the context could stretch over the ends
     ax_detect.XLim = [t(max([1, spike+cntxtwnd(1)])) t(min([length(t), spike+cntxtwnd(end)]))];
-    ax_detect.YLim = min(spike_ave.YData) + mean(hist_dots_in.YData)*[-2 3.5];
+    ax_detect.UserData = mean(hist_dots_in.YData);
+    ax_detect.YLim = min(spike_ave.YData) + ax_detect.UserData*[-3 3.5];
     ax_squigs.XLim = [t(max([1, ucspike+cntxtwnd(1)])) t(min([length(t), ucspike+cntxtwnd(end)]))];
     % ax_squigs.YLim = min(squigTplt.YData) + diff([min(squigTplt.YData) max(squigTplt.YData)])*[-1 2.5];
     ax_squigs.YLim = [min(trace_filtered.YData) max(trace_filtered.YData)];
@@ -426,7 +429,9 @@ if isempty(evntdata) && ~isempty(hist_dots_in)
     ax_hist.ButtonDownFcn = @spotCheck_XY;
     ax_hist.Parent.KeyPressFcn = @spotCheck_XY;
 
+    if ~isempty(hist_dots_in)
     hist_dots_in.ButtonDownFcn = @dotSelect;
+    end
     if ~isempty(hist_dots_out)
         hist_dots_out.ButtonDownFcn = @dotSelect;
     end
@@ -510,7 +515,7 @@ else % Evntdata is from a key press or clicking on another spike
             
         elseif strcmp(evntdata.EventName,'KeyPress') && all(evntdata.Key =='tab')
             % no decision made, just move to next spike
-            if any(hist_dots_in.XData == current_dot.XData(1))
+            if ~isempty(hist_dots_in) && any(hist_dots_in.XData == current_dot.XData(1))
                 set(current_tick,'tag','raster_ticks','color',[0 0 0],'Linewidth',1/2);
             else
                 delete(current_tick);
@@ -538,11 +543,15 @@ else % Evntdata is from a key press or clicking on another spike
             amps = spikes_map;
             out_idx = isnan(spikes_map(:,1));
             in_idx = ~isnan(spikes_map(:,1));
-            sDs(out_idx) = hist_dots_out.XData;
-            amps(out_idx) = hist_dots_out.YData;
-            sDs(in_idx) = hist_dots_in.XData;
-            amps(in_idx) = hist_dots_in.YData;
-                        
+            if any(out_idx)
+                sDs(out_idx) = hist_dots_out.XData;
+                amps(out_idx) = hist_dots_out.YData;
+            end
+            if any(in_idx)
+                sDs(in_idx) = hist_dots_in.XData;
+                amps(in_idx) = hist_dots_in.YData;
+            end
+            
             % Remove spikes from spikemap
             spikes_map(spikes_map(:,1)==suspect_spike.UserData,1) = NaN;
             out_idx = find(isnan(spikes_map(:,1)));
@@ -553,8 +562,10 @@ else % Evntdata is from a key press or clicking on another spike
             
             hist_dots_out = plot(ax_hist,sDs(out_idx),amps(out_idx),'.','color',[0.9290 0.6940 0.1250],'markersize',10,'tag','distance_hist_out'); hold(ax_hist,'on');
             hist_dots_in = plot(ax_hist,sDs(in_idx),amps(in_idx),'.','color',[.0 .45 .74],'markersize',10,'tag','distance_hist_in'); hold(ax_hist,'on');
-            hist_dots_in.UserData = spikes_map;
-            hist_dots_in.ButtonDownFcn = @dotSelect;
+            ax_hist.UserData = spikes_map;
+            if ~isempty(hist_dots_in)
+                hist_dots_in.ButtonDownFcn = @dotSelect;
+            end
             if ~isempty(hist_dots_out)
                 hist_dots_out.ButtonDownFcn = @dotSelect;
             end
@@ -573,7 +584,7 @@ else % Evntdata is from a key press or clicking on another spike
             plot(hObject,...
                 hist_dots_out.XData(switchedspike_idx),...
                 hist_dots_out.YData(switchedspike_idx),...
-                'marker','o','markeredgecolor',[1 0 1],'markersize',3);
+                'marker','o','markeredgecolor',[1 0 1],'markersize',5,'markerfacecolor','none');
             
             uistack([hist_dots_out hist_dots_in],'bottom')
             % Remove tick from ax_main (which is current_tick)
@@ -591,8 +602,10 @@ else % Evntdata is from a key press or clicking on another spike
                 sDs(out_idx) = hist_dots_out.XData;
                 amps(out_idx) = hist_dots_out.YData;
             end
-            sDs(in_idx) = hist_dots_in.XData;
-            amps(in_idx) = hist_dots_in.YData;
+            if ~isempty(hist_dots_in)
+                sDs(in_idx) = hist_dots_in.XData;
+                amps(in_idx) = hist_dots_in.YData;
+            end
             
             if any(trial.spikes==suspect_spike.UserData) % not looking at undetected spikes
                 fprintf('Spike at %.4f s saved (sample %d)\n',t(spike),spike);
@@ -625,8 +638,10 @@ else % Evntdata is from a key press or clicking on another spike
             
             hist_dots_out = plot(ax_hist,sDs(out_idx),amps(out_idx),'.','color',[0.9290 0.6940 0.1250],'markersize',10,'tag','distance_hist_out'); hold(ax_hist,'on');
             hist_dots_in = plot(ax_hist,sDs(in_idx),amps(in_idx),'.','color',[.0 .45 .74],'markersize',10,'tag','distance_hist_in'); hold(ax_hist,'on');
-            hist_dots_in.UserData = spikes_map;
-            hist_dots_in.ButtonDownFcn = @dotSelect;
+            ax_hist.UserData = spikes_map;
+            if ~isempty(hist_dots_in)
+                hist_dots_in.ButtonDownFcn = @dotSelect;
+            end
             if ~isempty(hist_dots_out)
                 hist_dots_out.ButtonDownFcn = @dotSelect;
             end
@@ -634,7 +649,7 @@ else % Evntdata is from a key press or clicking on another spike
 
             % Change the marker from red to green
             switchedspike_idx = find(spikes_map(in_idx,1) == spikes_map(spike_idx,1));
-            delete(findobj(ax_hist,'type','line','marker','o','XData',hist_dots_in.XData(switchedspike_idx),'-not','tag','current_dot','color',[1 0 0]));
+            delete(findobj(ax_hist,'type','line','marker','o','XData',hist_dots_in.XData(switchedspike_idx),'-not','tag','current_dot','color',[1 0 0])); %#ok<FNDSB>
             % cross off spikes
             %             plot(hObject,...
             %                 hist_dots_in.XData(switchedspike_idx),...
@@ -763,7 +778,7 @@ else % Evntdata is from a key press or clicking on another spike
         set(suspect_spike,'Userdata',spike);
         
         ax_detect.XLim = [t(max([1, spike+cntxtwnd(1)])) t(min([length(t), spike+cntxtwnd(end)]))];
-        ax_detect.YLim = min(spike_ave.YData) + mean(hist_dots_in.YData)*[-3 3.5];
+        ax_detect.YLim = min(spike_ave.YData) + ax_detect.UserData*[-3 3.5];
 
         ax_squigs.XLim = [t(max([1, ucspike+cntxtwnd(1)])) t(min([length(t), ucspike+cntxtwnd(end)]))];
         %ax_squigs.YLim = [min(trace_filtered.YData) max(trace_filtered.YData)];
@@ -798,7 +813,7 @@ if dist_in >.5 && dist_out >.5
 end
 
 % which index?
-spikemap = hist_dots_in.UserData;
+spikemap = ax_hist.UserData;
 
 if dist_in < dist_out
     spikes = spikemap(~isnan(spikemap(:,1)),1);
@@ -819,13 +834,12 @@ global spike_idx spike
 
 ax_main = hObject.Parent;
 ax_hist = findobj(ax_main.Parent,'type','axes','tag','hist');
-hist_dots_in = findobj(ax_hist,'tag','distance_hist_in');
 currenttime = evntdata.IntersectionPoint;
 x = makeInTime(ax_main.Parent.UserData.params);
 [~,indx] = min(abs(x-currenttime(1)));
 
 % which index?
-spikemap = hist_dots_in.UserData;
+spikemap = ax_hist.UserData;
 
 spikes = spikemap(:,1);
 [~,spike_idx] = min(abs(spikes-indx));

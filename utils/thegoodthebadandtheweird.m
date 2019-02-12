@@ -12,8 +12,12 @@ if sum(good) >= 40
 end
 
 % The borderline
-weirdbad = (x>xt & x<2*quantile(x(x<xt),0.85)) | ...
+weirdbad = (y>yt & x>xt) | ...
     (y <= yt & y > 0);
+if sum(weird) >= 7
+    weirdbad = (y>yt & x>xt & x<2*quantile(x(x<xt),0.85)) | ...
+    (y <= yt & y > 0);
+end
 
 % The bad
 bad = (x>xt | y < yt) & ~weirdbad;

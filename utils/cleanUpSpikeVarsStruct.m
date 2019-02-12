@@ -11,6 +11,7 @@ if isfield(v,'lastfile'),v = rmfield(v,{'lastfile'}); end
 if isfield(v,'spikeWaveform'),v = rmfield(v,{'spikeWaveform'}); end
 if isfield(v,'spikeWaveform_'),v = rmfield(v,{'spikeWaveform_'}); end
 if isfield(v,'locs_uncorrected'),v = rmfield(v,{'locs_uncorrected'}); end
+if isfield(v,'field'),v = rmfield(v,{'field'}); end
 
 if ~isfield(v,'peak_threshold');v.peak_threshold = 5;end %%initial threshold for finding peaks
 if ~isfield(v,'polarity'),v.polarity = 1; end
