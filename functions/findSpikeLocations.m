@@ -24,12 +24,3 @@ end
 % no peak locations within a spiketemplate width of the end or beginning
 peaklocs = peaklocs(peaklocs > vars.spikeTemplateWidth & peaklocs <  length(filtered_data)-vars.spikeTemplateWidth);
 
-% This was to elliminate really large peaks, obsolete
-% peaklocs = peaklocs(filtered_data(peaklocs) <= mean(filtered_data(peaklocs))+ 5*std(filtered_data(peaklocs)));
-
-% %% Debug figure
-% tempf = figure;
-% tempf.Position = [29         558        1876         420];
-% ax = subplot(1,1,1);
-% plot(ax,filtered_data); hold on
-% plot(ax,peaklocs,filtered_data(peaklocs),'go');

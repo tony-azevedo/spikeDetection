@@ -10,16 +10,22 @@ spikewindow = window-floor(vars.spikeTemplateWidth/2);
 smthwnd = (vars.fs/2000+1:length(spikewindow)-vars.fs/2000);
 
 % Find the best estimate of the spike shape and it's 2nd derivative
-for sp = 1:size(spikeWaveforms,2)
-    spikeWaveforms(:,sp) = spikeWaveforms(:,sp)-min(spikeWaveforms(:,sp));
-    spikeWaveforms(:,sp) = spikeWaveforms(:,sp)/max(spikeWaveforms(:,sp));
-end
-
 goodspikes = targetSpikeDist<quantile(targetSpikeDist,.25);
 if sum(goodspikes)<4
-    goodspikes(:) = 1;
+    if length(goodspikes)==1
+        goodspikes = 1;
+    else
+        [~,o] = sort(targetSpikeDist);
+        cnt = 1;
+        while sum(goodspikes)<floor(length(goodspikes)/2) && sum(goodspikes)<4
+            goodspikes(o(cnt)) = 1;
+            cnt = cnt+1;
+        end
+    end
 end
 spikeWaveform = nanmean(spikeWaveforms(:,goodspikes),2);
+spikeWaveform = spikeWaveform-min(spikeWaveform);
+spikeWaveform = spikeWaveform/max(spikeWaveform);
 
 if ~(isfield(vars,'field') && contains(vars.field,'EMG'))
     spikeWaveform = smooth(spikeWaveform-spikeWaveform(1),vars.fs/2000);

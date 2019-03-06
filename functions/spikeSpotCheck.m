@@ -6,6 +6,11 @@ if isfield(trial,'excluded') && trial.excluded
     return
 end
 
+if isempty(trial.spikes)
+    fprintf(' * No spikes to double check. Run the detection algorithm again: Trial %d\n',trial.params.trial);
+    return
+end
+
 % if length(unique(trial.spikes))~=length(trial.spikes)
 %     fprintf(' * Duplicate spikes found. Removing.\n')
 %     trial.spikes = unique(trial.spikes);
@@ -82,45 +87,47 @@ else
     % trial = load(sprintf(trialStem,trialnumlist(1)));
 end
 
-t = makeInTime(trial.params);
-vars.unfiltered_data = filterMembraneVoltage(trial.(inputToAnalyze),trial.params.sampratein);
-if isempty(findobj(ax_main,'tag','unfiltered_data'))
-    plot(ax_main,t,vars.unfiltered_data,'color',[.85 .33 .1],'tag','unfiltered_data'), hold(ax_main,'on');
-    axis(ax_main,'off');
-else
-    gobj = findobj(ax_main,'tag','unfiltered_data');
-    gobj.YData = vars.unfiltered_data;
-end
-
-if isempty(trial.spikes)
-    title(ax_main,sprintf('* No spikes to double check: Trial %d',trial.params.trial));
-    fprintf(' * No spikes to double check. Run the detection algorithm again\n')
-    return
-end
-
 vars = cleanUpSpikeVarsStruct(trial.spikeDetectionParams);
 
-window = -floor(vars.spikeTemplateWidth/2): floor(vars.spikeTemplateWidth/2);
+%% Rerun the detection with the current parameters to see what it would have
+% found
+
+vars.unfiltered_data = trial.(inputToAnalyze);
+% vars.unfiltered_data = filterMembraneVoltage(unfiltered_data,trial.params.sampratein);
+
+vars.filtered_data = filterDataWithSpikes(vars);
+if isfield(trial,'name')
+    [~,vars.lastfilename] = fileparts(trial.name);
+end
+
+spike_locs = findSpikeLocations(vars);
+
+if any(spike_locs~=unique(spike_locs))
+    error('Why are there multiple peak at the same time?')
+end
+
+[detectedUFSpikeCandidates,...
+    ~,...
+    ~,...
+    targetSpikeDist,...
+    spikeAmplitude,...
+    window,...
+    spikewindow] = ...
+    getSquiggleDistanceFromTemplate(spike_locs,vars.spikeTemplate,vars.filtered_data,vars.unfiltered_data,vars.spikeTemplateWidth,vars.fs);
+
+suspect = targetSpikeDist<vars.Distance_threshold & spikeAmplitude > vars.Amplitude_threshold;
+
+vars.locs = spike_locs;
+vars = estimateSpikeTimeFromInflectionPoint(vars,detectedUFSpikeCandidates,targetSpikeDist);
+% this returns some weird waveforms because
+
+%%
 smthwnd = (vars.fs/2000+1:length(window)-vars.fs/2000);
 idx_i = round(vars.spikeTemplateWidth/6);
 
-spikewindow = window-floor(vars.spikeTemplateWidth/2);
-
-detectedUFSpikeCandidates = [];
-targetSpikeDist = [];
-spikeAmplitude = [];
-
-% Rerun the detection with the current parameters to see what it would have
-% found
-spikeDetectSingleTrial(trial,inputToAnalyze)
-% vars.locs here is relative to beginning of the trial
-
-% Correct each detected spike to find its inflection point
-vars = estimateSpikeTimeFromInflectionPoint(vars,detectedUFSpikeCandidates,targetSpikeDist);
-
-if length(unique(vars.locs))~=length(unique(vars.locs_uncorrected))
-    error('SpikeInflection point detection is off');
-end
+% if length(unique(vars.locs))~=length(unique(vars.locs_uncorrected))
+%     error('SpikeInflection point detection is off');
+% end
 spikeWaveform = vars.spikeWaveform;
 spikeWaveform_ = vars.spikeWaveform_;
 [pk,ttpk] = max(spikeWaveform_(smthwnd));
@@ -129,6 +136,16 @@ spikeWaveform_ = spikeWaveform_/pk * max(spikeWaveform);
 ttpk = ttpk+smthwnd(1)-1;
 % center the spike window over the spike
 spikewindow = window+floor(vars.spikeTemplateWidth/2)-ttpk+1;
+
+t = makeInTime(trial.params);
+
+if isempty(findobj(ax_main,'tag','unfiltered_data'))
+    plot(ax_main,t,vars.unfiltered_data,'color',[.85 .33 .1],'tag','unfiltered_data'), hold(ax_main,'on');
+    axis(ax_main,'off');
+else
+    gobj = findobj(ax_main,'tag','unfiltered_data');
+    gobj.YData = vars.unfiltered_data;
+end
 
 % plot the 2nd D and the average spike in the back ground
 plot(ax_detect,...
@@ -148,8 +165,6 @@ plot(ax_squigs,...
 title(ax_main,sprintf('Hit Return if done, N if doing a series: Trial %d',trial.params.trial));
 spotCheckFig.UserData = trial;
     
-t = makeInTime(trial.params);
-vars.unfiltered_data = filterMembraneVoltage(trial.(inputToAnalyze),trial.params.sampratein);
 if isempty(findobj(ax_main,'tag','unfiltered_data'))
     plot(ax_main,t,vars.unfiltered_data,'color',[.85 .33 .1],'tag','unfiltered_data'), hold(ax_main,'on');
     axis(ax_main,'off');
@@ -157,15 +172,13 @@ else
     gobj = findobj(ax_main,'tag','unfiltered_data');
     gobj.YData = vars.unfiltered_data;
 end
-
-all_filtered_data = filterDataWithSpikes(vars);
     
 if isempty(findobj(ax_filtered,'tag','filtered_data'))
-    plot(ax_filtered,t,all_filtered_data-mean(all_filtered_data),'color',[.0 .45 .74],'tag','filtered_data'), hold(ax_filtered,'on');
+    plot(ax_filtered,t,vars.filtered_data-mean(vars.filtered_data),'color',[.0 .45 .74],'tag','filtered_data'), hold(ax_filtered,'on');
     axis(ax_filtered,'off');
 else
     gobj = findobj(ax_filtered,'tag','filtered_data');
-    gobj.YData = all_filtered_data-mean(all_filtered_data);
+    gobj.YData = vars.filtered_data-mean(vars.filtered_data);
 end
 
 if ~isfield(trial,'current_2')
@@ -230,51 +243,6 @@ if ~isvalid(spotCheckFig)
     h = [];
     return
 end
-    
-    function spikeDetectSingleTrial(trial,inputToAnalyze)
-        %         if trial.params.gain_1==100 && strcmp(inputToAnalyze,'voltage_1')
-        %             unfiltered_data = trial.(inputToAnalyze);
-        %         else
-        unfiltered_data = filterMembraneVoltage(trial.(inputToAnalyze),trial.params.sampratein);
-        %         end
-        
-        max_len = 400000;
-        if length(unfiltered_data) < max_len
-            vars.len = length(unfiltered_data)-round(.01*trial.params.sampratein);
-        else
-            vars.len = max_len -round(.01*trial.params.sampratein);
-        end
-        
-        start_point = round(.01*vars.fs);
-        stop_point = min([start_point+vars.len length(unfiltered_data)]);
-        vars.unfiltered_data = unfiltered_data(start_point+1:stop_point);
-
-        
-        all_filtered_data = filterDataWithSpikes(vars);
-        spike_locs = findSpikeLocations(vars,all_filtered_data);
-        if any(spike_locs~=unique(spike_locs))
-            error('Why are there multiple peak at the same time?')
-        end
-        
-
-        if any(spike_locs~=unique(spike_locs))
-            error('Why are there multiple peak at the same time?')
-        end
-        
-        % norm_spikeTemplate = (spikeTemplate-min(spikeTemplate))/(max(spikeTemplate)-min(spikeTemplate));
-        
-        [detectedUFSpikeCandidates,...
-            ~,...
-            ~,...
-            targetSpikeDist,...
-            spikeAmplitude,...
-            window,...
-            spikewindow] = ...
-            getSquiggleDistanceFromTemplate(spike_locs,vars.spikeTemplate,all_filtered_data,vars.unfiltered_data,vars.spikeTemplateWidth,vars.fs);
-        
-        vars.locs = spike_locs+start_point;
-
-    end
 
 end
 
@@ -423,8 +391,6 @@ if isempty(evntdata) && ~isempty(hist_dots_in) % Assumes you found a spike and t
     ax_squigs.XLim = [t(max([1, ucspike+cntxtwnd(1)])) t(min([length(t), ucspike+cntxtwnd(end)]))];
     % ax_squigs.YLim = min(squigTplt.YData) + diff([min(squigTplt.YData) max(squigTplt.YData)])*[-1 2.5];
     ax_squigs.YLim = [min(trace_filtered.YData) max(trace_filtered.YData)];
-
-
     
     ax_hist.ButtonDownFcn = @spotCheck_XY;
     ax_hist.Parent.KeyPressFcn = @spotCheck_XY;

@@ -10,6 +10,17 @@ spikes =  vars.locs;
 
 ipps = nan(size(spikes));
 
+%% debug
+DEBUG = 0;
+if DEBUG
+    figure
+    ax = subplot(1,1,1); ax.NextPlot = 'add';
+    plot(ax,window,spikeWaveform,'Color',[.8 .8 .8])
+    plot(ax,window,spikeWaveform_,'Color',[.5 1 .5])
+end
+
+%%
+
 for i = 1:length(spikes)
 
     if targetSpikeDist(i)>vars.Distance_threshold
@@ -35,6 +46,7 @@ for i = 1:length(spikes)
     end
     
     % normalize
+    detectedSpikeWaveform = (detectedSpikeWaveform-min(detectedSpikeWaveform(start_idx+1:end-end_idx)))/diff([min(detectedSpikeWaveform(start_idx+1:end-end_idx)) max(detectedSpikeWaveform(start_idx+1:end-end_idx))]);
     detectedSpikeWaveform_ = (detectedSpikeWaveform_-min(detectedSpikeWaveform_(start_idx+1:end-end_idx)))/diff([min(detectedSpikeWaveform_(start_idx+1:end-end_idx)) max(detectedSpikeWaveform_(start_idx+1:end-end_idx))]);
             
     [pks,inflPntPeak] = findpeaks(detectedSpikeWaveform_(start_idx+1:end-end_idx),'MinPeakProminence',0.02*251/vars.spikeTemplateWidth);
@@ -52,7 +64,18 @@ for i = 1:length(spikes)
         spikes(i) = spikes(i)+spikewindow(vars.likelyiflpntpeak);
         
     end
+    if DEBUG
+        sp = plot(ax,window,detectedSpikeWaveform,'Color',[0 0 0]);
+        dsp = plot(ax,window,detectedSpikeWaveform_,'Color',[0 .6 0]);
+        spipps = plot(ax,window(ipps(i)),detectedSpikeWaveform_(ipps(i)),'marker','o','color',[1 0 0]);
+
+        pause
         
+        delete(sp)
+        delete(dsp)
+        delete(spipps)
+    end
+
 end
 
 %%
@@ -75,5 +98,9 @@ end
 vars.locs = spikes;
 vars.spikeWaveform = spikeWaveform;
 vars.spikeWaveform_ = spikeWaveform_;
+
+if DEBUG
+    close(ax.Parent)
+end
 
 end

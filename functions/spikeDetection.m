@@ -2,6 +2,8 @@ function [trial,vars_skeleton] = spikeDetection(trial,inputToAnalyze,vars_initia
 % [trial,vars_skeleton] = spikeDetection(trial,inputToAnalyze,vars_initial,varargin)
 % This function detects spikes based on the match to a template and the
 % approx. size of the spike, from initial upswing to the peak.
+% To use this function in non-interactive mode use:
+%   [trial,~] = spikeDetection(trial,invec1,spikevars,'interact','no'); % fieldname will be 'spikes'
 
 %% Initial vars example
 %     vars_initial.fs = 50000;
@@ -36,14 +38,6 @@ switch p.Results.interact
         InteractFlag = 0;
 end
 
-unfiltered_data = trial.(inputToAnalyze);
-if ~isempty(p.Results.filter)
-    d1 = p.Results.filter;
-    unfiltered_data = lowPassFilterMembraneVoltage(unfiltered_data,d1.SampleRate,d1);
-elseif isfield(trial,'name')
-    %unfiltered_data = filterMembraneVoltage(unfiltered_data,trial.params.sampratein);
-end
-
 % clean up vars_initial
 vars_initial = cleanUpSpikeVarsStruct(vars_initial);
 vars_initial.field = p.Results.alt_spike_field;
@@ -56,11 +50,18 @@ end
 global vars;
 vars = vars_initial;
 
-vars.len = length(unfiltered_data)-round(.01*vars_initial.fs);
+unfiltered_data = trial.(inputToAnalyze);
+if ~isempty(p.Results.filter)
+    d1 = p.Results.filter;
+    unfiltered_data = lowPassFilterMembraneVoltage(unfiltered_data,d1.SampleRate,d1);
+elseif isfield(trial,'name')
+    %unfiltered_data = filterMembraneVoltage(unfiltered_data,trial.params.sampratein);
+end
 
 start_point = round(.01*vars_initial.fs);
-stop_point = min([start_point+vars.len length(unfiltered_data)]);
+stop_point = length(unfiltered_data);
 unfiltered_data = unfiltered_data(start_point+1:stop_point);
+vars.len = length(trial.(inputToAnalyze))-round(.01*vars_initial.fs);
 
 vars.unfiltered_data = unfiltered_data;
 vars.filtered_data = filterDataWithSpikes(vars);
@@ -173,7 +174,30 @@ end
         % waveforms and the DTW distance was somewhat large. Oddly, you'd
         % think it would go the opposite way, such that the template was smoother 
         % than the target spikes. I'm now using 3 poles as a happy medium               
+
+        %% First get details about the spike
         
+        if vars.peak_threshold > 1E4*std(vars.filtered_data)
+            vars.peak_threshold = 3*std(vars.filtered_data);
+        end
+        spike_locs = findSpikeLocations(vars, vars.filtered_data);
+        
+        if any(spike_locs~=unique(spike_locs))
+            error('Why are there multiple peak at the same time?')
+        end
+        
+        [detectedUFSpikeCandidates,...
+            detectedSpikeCandidates,...
+            norm_detectedSpikeCandidates,...
+            targetSpikeDist,...
+            spikeAmplitude,...
+            window,...
+            spikewindow] = ...
+            getSquiggleDistanceFromTemplate(spike_locs,spikeTemplate,vars.filtered_data,vars.unfiltered_data,vars.spikeTemplateWidth,vars.fs);
+        
+        vars.locs = spike_locs;
+
+
         %% Plot the trial
         % Create a figure that you can then click on to analyze spikes
         
@@ -204,31 +228,7 @@ end
             
             linkaxes([ax_main ax_filtered],'x');
         end
-        
-        %% Now get details about the spike
-        
-        if vars.peak_threshold > 1E4*std(vars.filtered_data)
-            vars.peak_threshold = 3*std(vars.filtered_data);
-        end
-        spike_locs = findSpikeLocations(vars, vars.filtered_data);
-
-        if any(spike_locs~=unique(spike_locs))
-            error('Why are there multiple peak at the same time?')
-        end
-        
-        norm_spikeTemplate = (spikeTemplate-min(spikeTemplate))/(max(spikeTemplate)-min(spikeTemplate));
-        
-        [detectedUFSpikeCandidates,...
-            detectedSpikeCandidates,...
-            norm_detectedSpikeCandidates,...
-            targetSpikeDist,...
-            spikeAmplitude,...
-            window,...
-            spikewindow] = ...
-            getSquiggleDistanceFromTemplate(spike_locs,spikeTemplate,vars.filtered_data,vars.unfiltered_data,vars.spikeTemplateWidth,vars.fs);
-        
-        vars.locs = spike_locs;
-
+                
         % This is useful feedback to see what has been detected thus far,
         % but if there are no spikes, stop here.
         if ~isempty(targetSpikeDist)

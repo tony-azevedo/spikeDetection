@@ -24,17 +24,40 @@ updateSpikeThreshold(ax_hist,[])
 
 while ~waitforbuttonpress;end
 
+
 distthresh_l.Color = [1 0 0];
 ampthresh_l.Color = [0 1 1];
 
 ax_hist.ButtonDownFcn = @updateAmpThreshold;
-ax_detect.ButtonDownFcn = [];
+% ax_detect.ButtonDownFcn = @runDetectionWithNewTemplate;
 
 title(ax_hist,'Click to change amplitude threshold (Y-axis)');
 title(ax_detect,'');
 
 updateAmpThreshold(ax_hist,[])
-while ~waitforbuttonpress;end
+
+% now allow the user to go back and forth using the key 'b'
+keydown = waitforbuttonpress;
+while strcmp(disttreshfig.CurrentCharacter,'b') || ~keydown
+    curfuntion = func2str(ax_hist.ButtonDownFcn);
+    if ~keydown
+        keydown = waitforbuttonpress;
+    elseif contains(curfuntion,'Spike')
+        distthresh_l.Color = [1 0 0];
+        ampthresh_l.Color = [0 1 1];        
+        ax_hist.ButtonDownFcn = @updateAmpThreshold;
+        title(ax_hist,'Click to change amplitude threshold (Y-axis)');
+        updateAmpThreshold(ax_hist,[])
+        keydown = waitforbuttonpress;
+    elseif contains(curfuntion,'Amp')
+        ampthresh_l.Color = [1 0 0];
+        distthresh_l.Color = [0 1 1];
+        ax_hist.ButtonDownFcn = @updateSpikeThreshold;
+        title(ax_hist,'Click to change distance threshold (X-axis)');
+        updateSpikeThreshold(ax_hist,[])
+        keydown = waitforbuttonpress;
+    end
+end
 
 end
 
