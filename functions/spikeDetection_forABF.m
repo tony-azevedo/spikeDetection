@@ -4,6 +4,9 @@ function [out,vars_skeleton] = spikeDetection_forABF(data,vars_initial)
 % Assume the abf file has been unpacked
 out.voltage = data;
 
+% need a name for the chunk of data
+out.name = vars_initial.lastfilename;
+
 % Use parameters from previous detection. 
 % But if you need a fresh start, here are initial parameters
 if isempty(vars_initial)

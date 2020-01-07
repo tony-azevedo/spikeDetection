@@ -139,6 +139,9 @@ if strcmp(newbutton,'Yes')
         else
             fprintf('Saved ''%s'' (%d) and filter parameters saved\n',fn,numel(trial.(fn)));
         end
+        
+        % Just close the detection figure, if it exists
+        delete(findobj('type','figure','tag','distanceThreshFig'));
         return
     end
     
@@ -207,7 +210,7 @@ end
         
         if InteractFlag
             
-            disttreshfig = figure; clf; set(disttreshfig, 'Position', [140          80        1600         900],'color', 'w');
+            disttreshfig = figure; clf; set(disttreshfig, 'Position', [140          80        1600         900],'color', 'w','tag','distanceThreshFig');
             disttreshfig.CloseRequestFcn = {@(hObject,eventdata,handles) disp('Hit a button')};
             disttreshfig.Name = vars.trialname;
             panl = panel(disttreshfig);
