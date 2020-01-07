@@ -141,14 +141,18 @@ uistack([hist_dots_out hist_dots_in],'bottom')
 xlims = ampthresh_l.XData+[-1 1]*.1*diff(ampthresh_l.XData);
 xlims = [xlims(1) max([xlims(2) distthresh_l.XData(2)*1.1])];
 ylims = distthresh_l.YData+[-1 1]*.1*diff(distthresh_l.YData);
+% ylims = [min([ylims(1), ampthresh_l.YData(1)-0.1*diff([ampthresh_l.YData(1) max(distthresh_l.YData)])]) ylims(2)];
 ylims = [min([ylims(1), ampthresh_l.YData(1)-0.1*diff([ampthresh_l.YData(1) max(distthresh_l.YData)])]) ylims(2)];
 % Typically, current injection leads to a huge and misleading spike
 % template-like waveform, dont' show it
-if length(spikeAmplitude) > 20 && sum(abs(spikeAmplitude-max(distthresh_l.YData))<.3) < 3
-    ylims(2) = max(spikeAmplitude(abs(spikeAmplitude-max(distthresh_l.YData))>.3)) + .1;
-end
-if length(spikeAmplitude) > 20 && sum(abs(spikeAmplitude-min(distthresh_l.YData))<.3) < 3
-    ylims(1) = min(spikeAmplitude(abs(spikeAmplitude-min(distthresh_l.YData))>.3)) - .1;
+% if length(spikeAmplitude) > 40 && sum(abs(spikeAmplitude-max(distthresh_l.YData))<.3) < 3
+%     ylims(2) = max(spikeAmplitude(abs(spikeAmplitude-max(distthresh_l.YData))>.3)) + .1;
+% end
+% if length(spikeAmplitude) > 40 && sum(abs(spikeAmplitude-min(distthresh_l.YData))<.3) < 3
+%     ylims(1) = min(spikeAmplitude(abs(spikeAmplitude-min(distthresh_l.YData))>.3)) - .1;
+% end
+if diff(xlims)<=0
+    xlims(2) = xlims(1)+2;
 end
 xlim(ax_hist,xlims);
 ylim(ax_hist,ylims);

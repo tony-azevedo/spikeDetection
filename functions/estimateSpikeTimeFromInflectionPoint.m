@@ -38,18 +38,18 @@ for i = 1:length(spikes)
 
     detectedSpikeWaveform = spikeWaveforms(:,i);
 
-    if ~(isfield(vars,'field') && contains(vars.field,'EMG'))
+    %if ~(isfield(vars,'field') && contains(vars.field,'EMG'))
         detectedSpikeWaveform = smooth(detectedSpikeWaveform-detectedSpikeWaveform(1),vars.fs/2000);
         detectedSpikeWaveform_ = smoothAndDifferentiate(detectedSpikeWaveform,vars.fs/2000);
-    else
+    %else
         detectedSpikeWaveform_ = Differentiate(detectedSpikeWaveform,vars.fs/4000);
-    end
+    %end
     
     % normalize
     detectedSpikeWaveform = (detectedSpikeWaveform-min(detectedSpikeWaveform(start_idx+1:end-end_idx)))/diff([min(detectedSpikeWaveform(start_idx+1:end-end_idx)) max(detectedSpikeWaveform(start_idx+1:end-end_idx))]);
     detectedSpikeWaveform_ = (detectedSpikeWaveform_-min(detectedSpikeWaveform_(start_idx+1:end-end_idx)))/diff([min(detectedSpikeWaveform_(start_idx+1:end-end_idx)) max(detectedSpikeWaveform_(start_idx+1:end-end_idx))]);
             
-    [pks,inflPntPeak] = findpeaks(detectedSpikeWaveform_(start_idx+1:end-end_idx),'MinPeakProminence',0.02*251/vars.spikeTemplateWidth);
+    [pks,inflPntPeak] = findpeaks(detectedSpikeWaveform_(start_idx+1:end-end_idx),'MinPeakProminence',0.04*251/vars.spikeTemplateWidth);
     inflPntPeak = inflPntPeak+start_idx;
     
     if numel(inflPntPeak)>1
@@ -61,6 +61,7 @@ for i = 1:length(spikes)
         spikes(i) = spikes(i)+spikewindow(inflPntPeak);
     else
         % Peak of 2nd derivative is still undefined
+        ipps(i) = vars.likelyiflpntpeak;
         spikes(i) = spikes(i)+spikewindow(vars.likelyiflpntpeak);
         
     end
@@ -69,7 +70,7 @@ for i = 1:length(spikes)
         dsp = plot(ax,window,detectedSpikeWaveform_,'Color',[0 .6 0]);
         spipps = plot(ax,window(ipps(i)),detectedSpikeWaveform_(ipps(i)),'marker','o','color',[1 0 0]);
 
-        pause
+            pause
         
         delete(sp)
         delete(dsp)

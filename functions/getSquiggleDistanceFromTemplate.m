@@ -1,4 +1,10 @@
-function varargout = getSquiggleDistanceFromTemplate(spike_locs,spikeTemplate,fd,ufd,stw,fs)
+function varargout = getSquiggleDistanceFromTemplate(spike_locs,spikeTemplate,fd,ufd,stw,fs,varargin)
+
+if ~isempty(varargin)
+    field = varargin{1};
+else 
+    field = 'spikes';
+end
 
 window = -floor(stw/2): floor(stw/2);
 spikewindow = window-floor(stw/2);
@@ -41,6 +47,7 @@ end
 
 vars.spikeTemplateWidth = stw;
 vars.fs = fs;
+vars.field = field;
 [vars,spikeWaveform] = likelyInflectionPoint(vars,detectedUFSpikeCandidates,targetSpikeDist);
 idx_f = round(stw/24);
 

@@ -125,6 +125,11 @@ vars = estimateSpikeTimeFromInflectionPoint(vars,detectedUFSpikeCandidates,targe
 smthwnd = (vars.fs/2000+1:length(window)-vars.fs/2000);
 idx_i = round(vars.spikeTemplateWidth/6);
 
+if any(suspect)
+    showAmp = mean(spikeAmplitude(suspect));
+else
+    showAmp = 1;
+end
 % if length(unique(vars.locs))~=length(unique(vars.locs_uncorrected))
 %     error('SpikeInflection point detection is off');
 % end
@@ -149,14 +154,18 @@ end
 
 % plot the 2nd D and the average spike in the back ground
 plot(ax_detect,...
-    spikewindow(smthwnd),spikeWaveform_(smthwnd),...
+    spikewindow(smthwnd),showAmp*spikeWaveform_(smthwnd),...
     'color',[0 .8 .4],'linewidth',2,'tag','spike_ddT'); hold(ax_detect,'on')
 plot(ax_detect,...
-    spikewindow,spikeWaveform,...
+    spikewindow,showAmp*spikeWaveform,...
     'color',[.4 .3 1],'linewidth',2,'tag','spike_ave');
-suspect_spike = raster(ax_detect,0,max(spikeWaveform));
+stcky = showAmp*(max(spikeWaveform)+[0,max(spikeWaveform)]);
+if diff(stcky) < 2
+    stcky(2) = stcky(1)+3;
+end
+suspect_spike = raster(ax_detect,0,stcky );
 suspect_spike.Tag = 'spike_time';
-suspect_spike.UserData = min(suspect_spike.YData)-max(spikeWaveform);
+suspect_spike.UserData = 0;
 
 plot(ax_squigs,...
     window,vars.spikeTemplate,...
@@ -387,7 +396,13 @@ if isempty(evntdata) && ~isempty(hist_dots_in) % Assumes you found a spike and t
     % but the context could stretch over the ends
     ax_detect.XLim = [t(max([1, spike+cntxtwnd(1)])) t(min([length(t), spike+cntxtwnd(end)]))];
     ax_detect.UserData = mean(hist_dots_in.YData);
-    ax_detect.YLim = min(spike_ave.YData) + ax_detect.UserData*[-3 3.5];
+    try ax_detect.YLim = min(spike_ave.YData) + ax_detect.UserData*[-3 3.5];
+    catch e
+        if strcmp(e.identifier,'MATLAB:hg:shaped_arrays:LimitsWithInfsPredicate')
+            ylims = min(spike_ave.YData) + ax_detect.UserData*[-3 3.5];
+            ax_detect.YLim = fliplr(ylims);
+        end
+    end
     ax_squigs.XLim = [t(max([1, ucspike+cntxtwnd(1)])) t(min([length(t), ucspike+cntxtwnd(end)]))];
     % ax_squigs.YLim = min(squigTplt.YData) + diff([min(squigTplt.YData) max(squigTplt.YData)])*[-1 2.5];
     ax_squigs.YLim = [min(trace_filtered.YData) max(trace_filtered.YData)];
@@ -418,6 +433,13 @@ else % Evntdata is from a key press or clicking on another spike
 
         if isempty(hist_dots_in)
             uiresume();
+            title(ax_detect,'Done');
+            hObject.Parent.CloseRequestFcn = {@(hObject,eventdata,handles) delete(hObject)};
+            
+            varargout = {''};
+            if evntdata.Character=='N'
+                cmd = 'next';
+            end
             return
         end
         % delete(current_tick); % just turn current_tick back into a normal
@@ -740,11 +762,17 @@ else % Evntdata is from a key press or clicking on another spike
 
         % plot spike
         suspect_spike.XData = t(spike) *[1 1];
-        suspect_spike.YData = suspect_spike.YData - suspect_spike.YData(1) + max(spike_ddT.YData)*[1 1];
+        suspect_spike.YData = suspect_spike.YData - suspect_spike.YData(1) + max(spike_ddT.YData);
         set(suspect_spike,'Userdata',spike);
         
         ax_detect.XLim = [t(max([1, spike+cntxtwnd(1)])) t(min([length(t), spike+cntxtwnd(end)]))];
-        ax_detect.YLim = min(spike_ave.YData) + ax_detect.UserData*[-3 3.5];
+        try ax_detect.YLim = min(spike_ave.YData) + ax_detect.UserData*[-3 3.5];
+        catch e
+            if strcmp(e.identifier,'MATLAB:hg:shaped_arrays:LimitsWithInfsPredicate')
+                ylims = min(spike_ave.YData) + ax_detect.UserData*[-3 3.5];
+                ax_detect.YLim = fliplr(ylims);
+            end
+        end
 
         ax_squigs.XLim = [t(max([1, ucspike+cntxtwnd(1)])) t(min([length(t), ucspike+cntxtwnd(end)]))];
         %ax_squigs.YLim = [min(trace_filtered.YData) max(trace_filtered.YData)];

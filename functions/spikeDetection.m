@@ -6,9 +6,9 @@ function [trial,vars_skeleton] = spikeDetection(trial,inputToAnalyze,vars_initia
 %   [trial,~] = spikeDetection(trial,invec1,spikevars,'interact','no'); % fieldname will be 'spikes'
 
 %% Initial vars example
-%     vars_initial.fs = 50000;
+%     vars_initial.fs = 10000;
 %     vars_initial.spikeTemplateWidth = round(0.005*vars_initial.fs)+1;
-%     vars_initial.len = 50000;
+%     vars_initial.len = 10000;
 %     vars_initial.hp_cutoff = 897.6012;
 %     vars_initial.lp_cutoff = 209.2370;
 %     vars_initial.diff = 1;
@@ -49,6 +49,10 @@ end
 
 global vars;
 vars = vars_initial;
+
+if InteractFlag
+    vars.trialname = trial.name;
+end
 
 unfiltered_data = trial.(inputToAnalyze);
 if ~isempty(p.Results.filter)
@@ -129,7 +133,7 @@ if strcmp(newbutton,'Yes')
         trial.([fn(1:end-1) 'DetectionParams']) = vars;
         trial.([fn(1:end-1) 'SpotChecked']) = 0;
         if isfield(trial,'name')
-            vars.lastfilename = trial.name;
+            [~,vars.lastfilename] = fileparts(trial.name);
             save(trial.name, '-struct', 'trial');
             fprintf('Saved ''%s'' (0) and filter parameters saved: %s\n',fn,trial.name);
         else
@@ -193,7 +197,7 @@ end
             spikeAmplitude,...
             window,...
             spikewindow] = ...
-            getSquiggleDistanceFromTemplate(spike_locs,spikeTemplate,vars.filtered_data,vars.unfiltered_data,vars.spikeTemplateWidth,vars.fs);
+            getSquiggleDistanceFromTemplate(spike_locs,spikeTemplate,vars.filtered_data,vars.unfiltered_data,vars.spikeTemplateWidth,vars.fs,vars.field);
         
         vars.locs = spike_locs;
 
@@ -205,6 +209,7 @@ end
             
             disttreshfig = figure; clf; set(disttreshfig, 'Position', [140          80        1600         900],'color', 'w');
             disttreshfig.CloseRequestFcn = {@(hObject,eventdata,handles) disp('Hit a button')};
+            disttreshfig.Name = vars.trialname;
             panl = panel(disttreshfig);
             
             vertdivisions = [2 1 4 4]; vertdivisions = num2cell(vertdivisions/sum(vertdivisions));
@@ -255,7 +260,11 @@ end
                 hold(ax_hist,'on');
                 
                 % Threshold lines
-                plot(ax_hist,vars.Distance_threshold*[1 1],[min(spikeAmplitude) max(spikeAmplitude)],'color',[1 0 0],'tag','dist_threshold');
+                ampthreshlineY = [min(spikeAmplitude) max(spikeAmplitude)];
+                if diff(ampthreshlineY)==0
+                    ampthreshlineY = [min(spikeAmplitude) min(spikeAmplitude)+1];
+                end
+                plot(ax_hist,vars.Distance_threshold*[1 1],ampthreshlineY,'color',[1 0 0],'tag','dist_threshold');
                 plot(ax_hist,[min(targetSpikeDist) max([max(targetSpikeDist) vars.Distance_threshold])],vars.Amplitude_threshold*[1 1],'color',[1 0 0],'tag','amp_threshold');
                 
                 % Plot good and bad detected waveforms
@@ -363,7 +372,7 @@ end
                     ~,...
                     targetSpikeDist,...
                     spikeAmplitude] = ...
-                    getSquiggleDistanceFromTemplate(vars.locs,spikeTemplate,vars.filtered_data,vars.unfiltered_data,vars.spikeTemplateWidth,vars.fs);
+                    getSquiggleDistanceFromTemplate(vars.locs,spikeTemplate,vars.filtered_data,vars.unfiltered_data,vars.spikeTemplateWidth,vars.fs,vars.field);
                 
             end
             
