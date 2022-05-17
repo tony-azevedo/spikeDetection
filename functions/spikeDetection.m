@@ -29,6 +29,7 @@ p = inputParser;
 p.addParameter('filter',[]);
 p.addParameter('interact','yes',@(x) any(validatestring(x,{'yes','no'})));
 p.addParameter('alt_spike_field','spikes', @(x) assert(ischar(x)));
+p.addParameter('intertrial_spikes','no', @(x) any(validatestring(x,{'yes','no'})));
 parse(p,varargin{:});
 
 switch p.Results.interact
@@ -54,7 +55,13 @@ if InteractFlag
     vars.trialname = trial.name;
 end
 
-unfiltered_data = trial.(inputToAnalyze);
+switch p.Results.intertrial_spikes
+    case 'yes'
+        unfiltered_data = cat(2,trial.(inputToAnalyze),trial.intertrial.(inputToAnalyze));
+    case 'no'
+        unfiltered_data = trial.(inputToAnalyze);
+end
+
 if ~isempty(p.Results.filter)
     d1 = p.Results.filter;
     unfiltered_data = lowPassFilterMembraneVoltage(unfiltered_data,d1.SampleRate,d1);
@@ -65,7 +72,7 @@ end
 start_point = round(.01*vars_initial.fs);
 stop_point = length(unfiltered_data);
 unfiltered_data = unfiltered_data(start_point+1:stop_point);
-vars.len = length(trial.(inputToAnalyze))-round(.01*vars_initial.fs);
+vars.len = length(unfiltered_data)-round(.01*vars_initial.fs);
 
 vars.unfiltered_data = unfiltered_data;
 vars.filtered_data = filterDataWithSpikes(vars);
